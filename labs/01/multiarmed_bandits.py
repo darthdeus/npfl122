@@ -1,5 +1,61 @@
 #!/usr/bin/env python3
+import abc
+import random
+
+import collections
+from collections import defaultdict
+from argparse import Namespace
+from abc import abstractmethod
+
 import numpy as np
+
+
+class Runner(abc.ABC):
+    args: Namespace
+
+    @abstractmethod
+    def __init__(self, args: Namespace):
+        self.args = args
+
+    @abstractmethod
+    def pick_action(self):
+        pass
+
+    @abstractmethod
+    def update_params(self, action: int, reward: float):
+        pass
+
+
+class RunnerGreedy(Runner):
+    def __init__(self, args: Namespace) -> None:
+        super().__init__(args)
+        self.Q = np.array([self.args.initial for _ in range(args.bandits)])
+        self.N = np.array([0 for _ in range(args.bandits)])
+
+    def pick_action(self) -> int:
+        if np.random.uniform() < self.args.epsilon:
+            return np.random.randint(0, len(self.Q))
+        else:
+            return np.argmax(self.Q).item()
+
+    def update_params(self, action: int, reward: float):
+        self.N[action] += 1
+
+        if self.args.alpha > 0:
+            learning_rate = self.args.alpha
+        else:
+            learning_rate = (1 / self.N[action])
+
+        self.Q[action] += learning_rate * (reward - self.Q[action])
+
+
+class RunnerUCB(Runner):
+    pass
+
+
+class RunnerGradient(Runner):
+    pass
+
 
 class MultiArmedBandits():
     def __init__(self, bandits, episode_length):
@@ -49,22 +105,28 @@ if __name__ == "__main__":
         env.reset()
 
         # TODO: Initialize required values (depending on mode).
+        if args.mode == "greedy":
+            runner = RunnerGreedy(args)
+        elif args.mode == "ucb":
+            runner = RunnerUCB(args)
+        elif args.mode == "gradient":
+            runner = RunnerGradient(args)
 
         average_rewards.append(0)
         done = False
         while not done:
             # TODO: Action selection according to mode
-            if args.mode == "greedy":
-                action =
-            elif args.mode == "ucb":
-                action =
-            elif args.mode == "gradient":
-                action =
+            action = runner.pick_action()
 
             _, reward, done, _ = env.step(action)
             average_rewards[-1] += reward / args.episode_length
 
             # TODO: Update parameters
+            runner.update_params(action, reward)
 
     # Print out final score as mean and variance of all obtained rewards.
     print("Final score: {}, variance: {}".format(np.mean(average_rewards), np.var(average_rewards)))
+
+    fname = f"outputs/out.txt"
+    with open(fname, "a+") as f:
+        f.write(f"{args.mode},{args.alpha},{args.c},{args.epsilon},{args.initial},{np.mean(average_rewards)}\n")
