@@ -8,28 +8,29 @@ from argparse import Namespace
 from abc import abstractmethod
 
 import numpy as np
+from pandas._libs.hashtable import na_sentinel
 
 
 class Runner(abc.ABC):
     args: Namespace
 
     @abstractmethod
-    def __init__(self, args: Namespace):
+    def __init__(self, args: Namespace) -> None:
         self.args = args
 
     @abstractmethod
-    def pick_action(self):
+    def pick_action(self) -> int:
         pass
 
     @abstractmethod
-    def update_params(self, action: int, reward: float):
+    def update_params(self, action: int, reward: float) -> None:
         pass
 
 
 class RunnerGreedy(Runner):
     def __init__(self, args: Namespace) -> None:
         super().__init__(args)
-        self.Q = np.array([self.args.initial for _ in range(args.bandits)])
+        self.Q = np.array([self.args.initial for _ in range(args.bandits)], dtype=np.float32)
         self.N = np.array([0 for _ in range(args.bandits)])
 
     def pick_action(self) -> int:
@@ -38,7 +39,7 @@ class RunnerGreedy(Runner):
         else:
             return np.argmax(self.Q).item()
 
-    def update_params(self, action: int, reward: float):
+    def update_params(self, action: int, reward: float) -> None:
         self.N[action] += 1
 
         if self.args.alpha > 0:
@@ -46,15 +47,36 @@ class RunnerGreedy(Runner):
         else:
             learning_rate = (1 / self.N[action])
 
-        self.Q[action] += learning_rate * (reward - self.Q[action])
+        increment = learning_rate * (reward - self.Q[action])
+        self.Q[action] = self.Q[action] + increment
 
 
-class RunnerUCB(Runner):
-    pass
+class RunnerUCB(RunnerGreedy):
+    def __init__(self, args: Namespace) -> None:
+        super().__init__(args)
+        self.N = np.array([1.0/args.bandits for _ in range(args.bandits)])
+        self.c = args.c
+
+    def pick_action(self) -> int:
+        t = self.N.sum()
+        return np.argmax(self.Q + self.c * np.sqrt(np.log(t) / self.N)).item()
 
 
 class RunnerGradient(Runner):
-    pass
+    def __init__(self, args: Namespace) -> None:
+        super().__init__(args)
+        self.alpha = args.alpha
+        self.possible_actions = range(args.bandits)
+        self.H = np.array([0 for _ in self.possible_actions], dtype=np.float32)
+
+    def policy(self) -> np.ndarray:
+        return np.exp(self.H) / np.exp(self.H).sum()
+
+    def pick_action(self) -> int:
+        return np.random.choice(self.possible_actions, size=1, p=self.policy())[0]
+
+    def update_params(self, action: int, reward: float) -> None:
+        self.H[action] += self.alpha * reward * (1 - self.policy()[action].item())
 
 
 class MultiArmedBandits():
