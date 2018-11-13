@@ -10,14 +10,20 @@ if __name__ == "__main__":
     # Parse arguments
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("--episodes", default=3000, type=int, help="Training episodes.")
-    parser.add_argument("--render_each", default=500, type=int, help="Render some episodes.")
+    parser.add_argument("--episodes", default=10000, type=int, help="Training episodes.")
+    parser.add_argument("--render_each", default=0, type=int, help="Render some episodes.")
 
     parser.add_argument("--alpha", default=0.1, type=float, help="Learning rate.")
     parser.add_argument("--alpha_final", default=None, type=float, help="Final learning rate.")
-    parser.add_argument("--epsilon", default=0.45, type=float, help="Exploration factor.")
+    parser.add_argument("--epsilon", default=0.06, type=float, help="Exploration factor.")
     parser.add_argument("--epsilon_final", default=0.06, type=float, help="Final exploration factor.")
-    parser.add_argument("--gamma", default=1, type=float, help="Discounting factor.")
+    parser.add_argument("--gamma", default=0.99, type=float, help="Discounting factor.")
+
+    # parser.add_argument("--alpha", default=0.02, type=float, help="Learning rate.")
+    # parser.add_argument("--alpha_final", default=None, type=float, help="Final learning rate.")
+    # parser.add_argument("--epsilon", default=0.2, type=float, help="Exploration factor.")
+    # parser.add_argument("--epsilon_final", default=0.5, type=float, help="Final exploration factor.")
+    # parser.add_argument("--gamma", default=0.99, type=float, help="Discounting factor.")
     args = parser.parse_args()
 
     # Create the environment
@@ -25,36 +31,14 @@ if __name__ == "__main__":
 
     # The environment has env.states states and env.actions actions.
 
-    training = True
-
-    # # TODO: Implement a suitable RL algorithm.
-    # #
-    # # The overall structure of the code follows.
-    # while training:
-    #
-    #     # To generate expert trajectory, you can use
-    #     state, trajectory = env.expert_trajectory()
-    #
-    #     # Perform a training episode
-    #     state, done = env.reset(), False
-    #     while not done:
-    #         if args.render_each and env.episode and env.episode % args.render_each == 0:
-    #             env.render()
-    #
-    #         print(env.states)
-    #         action = np.random.randint(0, 4)
-    #
-    #         next_state, reward, done, _ = env.step(action)
-    #         state = next_state
-    #
-    # # Perform last 100 evaluation episodes
-
-    epsUpdate = (args.epsilon - args.epsilon_final) / args.episodes
+    eps_update = (args.epsilon - args.epsilon_final) / args.episodes
 
     # TODO: Implement Q-learning RL algorithm.
     epsilon = args.epsilon
-    Q = np.zeros((env.states, env.actions))
+    # Q = np.zeros((env.states, env.actions))
     Q = 5*np.ones((env.states, env.actions))
+
+    Q = np.load("Q3.dat.npy")
 
     # The overall structure of the code follows.
     for i in range(args.episodes):
@@ -80,16 +64,19 @@ if __name__ == "__main__":
             state = next_state
 
         if i < args.episodes:
-            epsilon = epsilon - epsUpdate
+            epsilon = epsilon - eps_update
 
-    np.save("Q.dat", Q)
+    np.save("Q4.dat", Q)
 
-    # Perform last 100 evaluation episodes
-    while True:
-        state, done = env.reset(True), False
+    env.reset(start_evaluate=True)
+
+    for _ in range(100):
+
+        # Perform an evaluation episode
+        state, done = env.reset(), False
         while not done:
             if args.render_each and env.episode and env.episode % args.render_each == 0:
                 env.render()
+
             action = np.argmax(Q[state, :])
-            next_state, reward, done, _ = env.step(action)
-            state = next_state
+            state, reward, done, _ = env.step(action)
