@@ -7,9 +7,9 @@ import numpy as np
 import mountain_car_evaluator
 
 
-def selectAction(state):
+def epsilon_greedy_action(state):
     rand = np.random.rand()
-    if (rand <= epsilon):
+    if rand <= epsilon:
         return np.random.randint(0, env.actions)
     else:
         return np.argmax(Q[state, :])
@@ -40,37 +40,36 @@ if __name__ == "__main__":
     i = 0
     training = True
 
-    # epsUpdate = (args.epsilon - args.epsilon_final) / args.episodes
-    epsUpdate = (args.epsilon - args.epsilon_final) / args.episodes
+    eps_step_update = (args.epsilon - args.epsilon_final) / args.episodes
 
     # TODO: Implement Q-learning RL algorithm.
     epsilon = args.epsilon
     Q = np.zeros((env.states, env.actions))
 
-    # The overall structure of the code follows.
     while training:
-        # Perform a training episode
         state, done = env.reset(), False
-        rewAvg = 0;
+        avg_reward = 0
+
         while not done:
             if args.render_each and env.episode and env.episode % args.render_each == 0:
                 env.render()
-            action = selectAction(state)
+
+            action = epsilon_greedy_action(state)
             next_state, reward, done, _ = env.step(action)
-            rewAvg += reward
+            avg_reward += reward
             Q[state, action] = Q[state, action] + args.alpha * (
                         reward + args.gamma * np.max(Q[next_state, :]) - Q[state, action])
             state = next_state
 
         i += 1
-        mean[i % 100] = rewAvg
-        if (i >= 100):
+        mean[i % 100] = avg_reward
+        if i >= 100:
 
             avg = np.average(mean)
             if avg > -50:
-                training = False;
-        if (i < args.episodes):
-            epsilon = epsilon - epsUpdate
+                training = False
+        if i < args.episodes:
+            epsilon = epsilon - eps_step_update
 
     # Perform last 100 evaluation episodes
     while True:
