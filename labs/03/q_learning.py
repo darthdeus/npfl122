@@ -23,14 +23,14 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--episodes", default=30000, type=int, help="Training episodes.")
-    parser.add_argument("--render_each", default=3000, type=int, help="Render some episodes.")
+    parser.add_argument("--episodes", default=10000, type=int, help="Training episodes.")
+    parser.add_argument("--render_each", default=0, type=int, help="Render some episodes.")
 
     parser.add_argument("--alpha", default=0.1, type=float, help="Learning rate.")
     parser.add_argument("--alpha_final", default=None, type=float, help="Final learning rate.")
     parser.add_argument("--epsilon", default=0.45, type=float, help="Exploration factor.")
     parser.add_argument("--epsilon_final", default=0.06, type=float, help="Final exploration factor.")
-    parser.add_argument("--gamma", default=1, type=float, help="Discounting factor.")
+    parser.add_argument("--gamma", default=0.99, type=float, help="Discounting factor.")
     args = parser.parse_args()
 
     # Create the environment
@@ -47,6 +47,9 @@ if __name__ == "__main__":
     Q = np.zeros((env.states, env.actions))
 
     while training:
+        if i > args.episodes:
+            break
+
         state, done = env.reset(), False
         avg_reward = 0
 
