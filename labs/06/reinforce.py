@@ -22,10 +22,15 @@ class Network:
             # - add a fully connected layer of size args.hidden_layer and ReLU activation
             # - add a fully connected layer with num_actions and no activation, computing `logits`
             # - compute `self.probabilities` as tf.nn.softmax of `logits`
+            hidden = tf.layers.dense(self.states, args.hidden_layer, activation=tf.nn.relu)
+            logits = tf.layers.dense(hidden, num_actions, activation=None)
+
+            self.probabilities = tf.nn.softmax(logits)
 
             # TODO: Training
             # - compute `loss` as sparse softmax cross entropy of `self.actions` and `logits`,
             # weighted by `self.returns` (using `weights` param)
+            loss = tf.losses.sparse_softmax_cross_entropy(self.actions, logits, weights=self.returns)
 
             global_step = tf.train.create_global_step()
             self.training = tf.train.AdamOptimizer(args.learning_rate).minimize(loss, global_step=global_step, name="training")
@@ -46,11 +51,11 @@ if __name__ == "__main__":
     # Parse arguments
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("--batch_size", default=None, type=int, help="Number of episodes to train on.")
-    parser.add_argument("--episodes", default=None, type=int, help="Training episodes.")
+    parser.add_argument("--batch_size", default=16, type=int, help="Number of episodes to train on.")
+    parser.add_argument("--episodes", default=1000, type=int, help="Training episodes.")
     parser.add_argument("--gamma", default=1.0, type=float, help="Discounting factor.")
     parser.add_argument("--hidden_layer", default=20, type=int, help="Size of hidden layer.")
-    parser.add_argument("--learning_rate", default=None, type=float, help="Learning rate.")
+    parser.add_argument("--learning_rate", default=3e-2, type=float, help="Learning rate.")
     parser.add_argument("--render_each", default=0, type=int, help="Render some episodes.")
     parser.add_argument("--threads", default=1, type=int, help="Maximum number of threads to use.")
     args = parser.parse_args()
@@ -64,6 +69,11 @@ if __name__ == "__main__":
 
     # Training
     for _ in range(args.episodes // args.batch_size):
+        # if env.episode == 200:
+        #     args.learning_rate = 1e-2
+        # if env.episode == 500:
+        #     args.learning_rate = 5e-3
+
         batch_states, batch_actions, batch_returns = [], [], []
         for _ in range(args.batch_size):
             # Perform episode
@@ -74,8 +84,10 @@ if __name__ == "__main__":
                     env.render()
 
                 # TODO: Compute action probabilities using `network.predict` and current `state`
+                probabilities = network.predict([state])[0]
 
                 # TODO: Choose `action` according to `probabilities` distribution (np.random.choice can be used)
+                action = np.random.choice(range(env.actions), p=probabilities)
 
                 next_state, reward, done, _ = env.step(action)
 
@@ -85,9 +97,19 @@ if __name__ == "__main__":
 
                 state = next_state
 
-            # TODO: Compute returns by summing rewards (with discounting)
+            returns = []
+            for reward in reversed(rewards):
+                if len(returns) == 0:
+                    returns.append(reward)
+                else:
+                    returns.append(reward + args.gamma * returns[-1])
+
+            returns = reversed(returns)
 
             # TODO: Add states, actions and returns to the training batch
+            batch_states .extend(states)
+            batch_actions.extend(actions)
+            batch_returns.extend(returns)
 
         # Train using the generated batch
         network.train(batch_states, batch_actions, batch_returns)
@@ -97,6 +119,7 @@ if __name__ == "__main__":
         state, done = env.reset(True), False
         while not done:
             # TODO: Compute action `probabilities` using `network.predict` and current `state`
+            probabilities = network.predict([state])[0]
 
             # Choose greedy action this time
             action = np.argmax(probabilities)

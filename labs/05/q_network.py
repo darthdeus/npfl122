@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import collections
 
+import random
 import numpy as np
 import tensorflow as tf
 
@@ -60,7 +61,7 @@ if __name__ == "__main__":
     parser.add_argument("--hidden_layers", default=2, type=int, help="Number of hidden layers.")
     parser.add_argument("--hidden_layer_size", default=20, type=int, help="Size of hidden layer.")
     parser.add_argument("--learning_rate", default=0.001, type=float, help="Learning rate.")
-    parser.add_argument("--render_each", default=0, type=int, help="Render some episodes.")
+    parser.add_argument("--render_each", default=200, type=int, help="Render some episodes.")
     parser.add_argument("--threads", default=1, type=int, help="Maximum number of threads to use.")
     args = parser.parse_args()
 
@@ -87,23 +88,66 @@ if __name__ == "__main__":
 
             # TODO: compute action using epsilon-greedy policy. You can compute
             # the q_values of a given state using
-            #   q_values = network.predict([state])[0]
+            q_values = network.predict([state])[0]
+
+            if random.random() < args.epsilon:
+                action = random.randint(0, env.actions - 1)
+            else:
+                action = q_values.argmax()
 
             next_state, reward, done, _ = env.step(action)
 
             # Append state, action, reward, done and next_state to replay_buffer
             replay_buffer.append(Transition(state, action, reward, done, next_state))
 
+
+
             # TODO: If the replay_buffer is large enough, preform a training batch
             # of `args.batch_size` uniformly randomly chosen transitions.
             #
             # After you choose `states`, `actions` and their target `q_values`,
             # you train the network as
-            #   network.train(states, actions, q_values)
+            if not evaluating and len(replay_buffer) > args.batch_size:
+                batch = random.sample(replay_buffer, k=args.batch_size)
+
+                states, actions, q_values = [], [], []
+
+                for item in batch:
+                    states.append(item.state)
+                    actions.append(item.action)
+
+                    if item.done:
+                        q_values.append(item.reward)
+                    else:
+                        q_values.append(item.reward + args.gamma * network.predict([item.next_state])[0].max())
+
+                # states   = [x.state for x in batch]
+                # actions  = [x.action for x in batch]
+                # q_values = [x.reward for x in batch]
+
+                network.train(states, actions, q_values)
 
             state = next_state
 
+
         # TODO: Decide if we want to start evaluating
+        if not evaluating and env.episode % 100 == 0:
+            total = 0
+
+            for i in range(25):
+                # Perform episode
+                state, done = env.reset(evaluating), False
+                while not done:
+                    if i == 0: env.render()
+
+                    q_values = network.predict([state])[0]
+                    action = q_values.argmax()
+                    state, reward, done, _ = env.step(action)
+
+                    total += reward
+
+            if total / 25 > 400:
+                evaluating = True
 
         if not evaluating:
             if args.epsilon_final:
