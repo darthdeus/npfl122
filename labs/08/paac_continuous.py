@@ -22,6 +22,11 @@ class Network:
             # to one-hot encoding and store them as `states`. I.e., for batch
             # example i, state should be a vector of length `weights` with `tiles` ones
             # on indices `self.states[i, 0..`tiles`-1] and the rest being zeros.
+            encoded = tf.one_hot(self.states, weights)
+            encoded = tf.reduce_sum(encoded, axis=-1)
+
+            assert len(encoded.shape) == 2
+            assert int(encoded.shape[1]) == tiles
 
             # Expert remark: The `states` representation is very sparse, so much better
             # performance can be achieved by converting it to `SparseTensor`. However,
@@ -36,14 +41,22 @@ class Network:
             #   `tf.tanh` activation.
             # - For `self.sds` add a fully connected layer with `actions` outputs
             #   and `tf.nn.softplus` activation.
+            hidden_mu = tf.layers.dense(encoded, args.hidden_layer, activation=tf.nn.relu)
+            hidden_sd = tf.layers.dense(encoded, args.hidden_layer, activation=tf.nn.relu)
+
+            self.mus = tf.layers.dense(hidden_mu, actions, tf.nn.tanh)
+            self.sds = tf.layers.dense(hidden_sd, actions, tf.nn.softplus)
 
             # TODO: Create `action_distribution` using tf.distributions.Normal
             # and computed `self.mus` and `self.sds`.
+            mrgauss = tf.distributions.Normal(self.mus, self.sds)
 
             # TODO(reinforce_with_baseline): Compute `self.values`, starting with `states` and
             # - add a fully connected layer of size args.hidden_layer and ReLU activation
             # - add a fully connected layer with 1 output and no activation
             # - modify the result to have shape `[batch_size]` (you can use for example `[:, 0]`)
+            hidden = tf.layers.dense(encoded, args.hidden_layer, activation=tf.nn.relu)
+            self.values = tf.layers.dense(hidden, 1, activation=None)[:, 0]
 
             # TODO: Compute `loss` as a sum of three losses:
             # - negative log probability of the `self.actions` in the `action_distribution`
@@ -54,6 +67,11 @@ class Network:
             # - negative value of the distribution entropy (use `entropy` method of
             #   the `action_distribution`) weighted by `args.entropy_regularization`.
             # - mean square error of the `self.returns` and `self.values`
+            l1 = (self.returns - tf.stop_gradient(self.values)) * tf.reduce_sum(mrgauss.log_prob(self.actions), axis=1)
+            l2 = - args.entropy_regularization * mrgauss.entropy()
+            l3 = tf.losses.mean_squared_error(self.returns, self.values)
+
+            loss = tf.reduce_mean(l1) + tf.reduce_mean(l2) + tf.reduce_mean(l3)
 
             global_step = tf.train.create_global_step()
             self.training = tf.train.AdamOptimizer(args.learning_rate).minimize(loss, global_step=global_step, name="training")
@@ -84,9 +102,9 @@ if __name__ == "__main__":
     parser.add_argument("--hidden_layer", default=100, type=int, help="Size of hidden layer.")
     parser.add_argument("--learning_rate", default=0.001, type=float, help="Learning rate.")
     parser.add_argument("--render_each", default=0, type=int, help="Render some episodes.")
-    parser.add_argument("--threads", default=1, type=int, help="Maximum number of threads to use.")
+    parser.add_argument("--threads", default=12, type=int, help="Maximum number of threads to use.")
     parser.add_argument("--tiles", default=8, type=int, help="Tiles to use.")
-    parser.add_argument("--workers", default=1, type=int, help="Number of parallel workers.")
+    parser.add_argument("--workers", default=5, type=int, help="Number of parallel workers.")
     args = parser.parse_args()
 
     # Create the environment
@@ -106,15 +124,47 @@ if __name__ == "__main__":
             # TODO: Choose actions using network.predict_actions.
             # using np.random.normal to sample action and np.clip
             # to clip it using action_lows and action_highs,
+            preds = network.predict_actions(states)
+
+            actions = [np.clip(np.random.normal(p[0], p[1]), action_lows, action_highs)
+                       for p in preds]
 
             # TODO: Perform steps by env.parallel_step
+            xxx = env.parallel_step(actions)
+
+            next_states, rewards, dones, _ = list(zip(*xxx))
+            next_values = network.predict_values(np.array(next_states))
 
             # TODO: Compute return estimates by
             # - extracting next_states from steps
             # - computing value function approximation in next_states
             # - estimating returns by reward + (0 if done else args.gamma * next_state_value)
+            returns = []
+            for next_value, reward, action, done in zip(next_values, rewards, actions, dones):
+                if done:
+                    ret = reward
+                else:
+                    ret = reward  + args.gamma * next_value
+
+                returns.append(ret)
+                #     next_state_value = np.zeros_like(next_states, dtype=np.float32)
+                # else:
+                #     next_state_value = network.predict_values(next_states)
+
+                # TODO: next_state_value only for action?
+                # returns.append(reward + args.gamma * next_state_value[action])
+
+            # returns = reward + args.gamma * next_state_value
+            states  = np.array(states,   dtype=np.float32)
+            actions = np.array(actions, dtype=np.int32)
+            returns = np.array(returns, dtype=np.float32)
+
+            # actions = actions[..., 0]
+            # print(states.shape, actions.shape, returns.shape)
+            # __import__('ipdb').set_trace()
 
             # TODO: Train network using current states, chosen actions and estimated returns
+            network.train(states, actions, returns)
 
             states = next_states
 
