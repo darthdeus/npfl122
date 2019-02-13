@@ -29,6 +29,11 @@ class Network:
                 # Each action_component[i] should be mapped to range
                 # [actions_lows[i]..action_highs[i]], for example using tf.nn.sigmoid
                 # and suitable rescaling.
+                hidden = tf.layers.dense(inputs, args.hidden_layer, activation=tf.nn.relu)
+                hidden = tf.layers.dense(hidden, args.hidden_layer, activation=tf.nn.sigmoid)
+
+                diff = action_highs - action_lows
+                return action_lows + diff * hidden
 
             with tf.variable_scope("actor"):
                 self.mus = actor(self.states)
@@ -42,6 +47,13 @@ class Network:
                 # and producing a vector of predicted returns. Usually, `inputs` are fed
                 # through a hidden layer first, and then concatenated with `actions` and fed
                 # through two more hidden layers, before computing the returns.
+                hidden = tf.layers.dense(inputs, args.hidden_layer, activation=tf.nn.relu)
+                hidden = tf.concat([hidden, actions])
+
+                hidden = tf.layers.dense(hidden, args.hidden_layer, activation=tf.nn.relu)
+                hidden = tf.layers.dense(hidden, 1)
+
+                return hidden
 
             with tf.variable_scope("critic"):
                 values_of_given = critic(self.states, self.actions)
