@@ -8,7 +8,6 @@ from argparse import Namespace
 from abc import abstractmethod
 
 import numpy as np
-from pandas._libs.hashtable import na_sentinel
 
 
 class Runner(abc.ABC):
