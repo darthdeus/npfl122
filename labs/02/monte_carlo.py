@@ -14,12 +14,14 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--episodes", default=5000, type=int, help="Training episodes.")
-    parser.add_argument("--render_each", default=500, type=int, help="Render some episodes.")
+    parser.add_argument("--render_each", default=0, type=int, help="Render some episodes.")
 
     parser.add_argument("--epsilon", default=0.1, type=float, help="Exploration factor.")
     parser.add_argument("--epsilon_final", default=0.01, type=float, help="Final exploration factor.")
     parser.add_argument("--gamma", default=0.99, type=float, help="Discounting factor.")
     args = parser.parse_args()
+
+    print(args)
 
     # Create the environment
     env = cart_pole_evaluator.environment()
@@ -31,7 +33,7 @@ if __name__ == "__main__":
 
     returns = defaultdict(lambda: [])
     Q = np.zeros([env.states, env.actions], dtype=np.float32)
-    # Q.fill(50.)
+    Q.fill(50.)
 
     C = np.zeros([env.states, env.actions], dtype=np.float32)
 
@@ -74,7 +76,7 @@ if __name__ == "__main__":
 
         eps_curr += eps_diff
 
-        if episode_num % args.render_each == 0:
+        if args.render_each and episode_num % args.render_each == 0:
             print(f"eps curr: {eps_curr}")
 
             # Evaluation episode
@@ -84,5 +86,12 @@ if __name__ == "__main__":
                 action = policy[state].item()
                 state, _, done, _ = env.step(action)
 
+        if episode_num > args.episodes:
+            break
 
     # Perform last 100 evaluation episodes
+    while True:
+        state, done = env.reset(True), False
+        while not done:
+            action = policy[state].item()
+            state, _, done, _ = env.step(action)
