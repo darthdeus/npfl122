@@ -129,8 +129,8 @@ class GymEnvironment:
                     self.episode, np.mean(self._episode_returns[-100:])), file=sys.stderr)
             if self._evaluating_from is not None and self.episode >= self._evaluating_from + 100:
                 mean = np.mean(self._episode_returns[-100:])
-                print("The mean 100-episode return after evaluation {}".format(mean))
                 print("RESULT={}".format(mean))
+                print("The mean 100-episode return after evaluation {}".format(mean))
                 sys.exit(0)
 
             self._episode_return = 0
