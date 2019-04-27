@@ -130,8 +130,7 @@ class GymEnvironment:
             if self._evaluating_from is not None and self.episode >= self._evaluating_from + 100:
                 mean = np.mean(self._episode_returns[-100:])
                 print("The mean 100-episode return after evaluation {}".format(mean))
-                # FUJ ale lip to neumim :P
-                # raise UnicodeError(mean)
+                print("RESULT={}".format(mean))
                 sys.exit(0)
 
             self._episode_return = 0
